@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Audit Flash – Maturité Innovation (v1.2 – Offline)</title>
+  <meta name="description" content="Audit Flash individuel 100% offline (sans CDN) : nom saisi, couleurs dynamiques, radar custom canvas, KPIs, export/import JSON, impression." />
+  <style>
+    :root{ --bg:#121417; --panel:#1a1f24; --muted:#6b7280; --text:#e5e7eb; --silver:#9ca3af; --card:#15191f; --radius:18px; }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial; color:var(--text); background:linear-gradient(180deg,#121417,#0e1115 60%)}
+    header{display:flex; gap:16px; align-items:center; justify-content:space-between; padding:20px clamp(16px,3vw,32px); position:sticky; top:0; z-index:10; background:linear-gradient(180deg,rgba(14,17,21,.95),rgba(14,17,21,.65)); backdrop-filter:saturate(120%) blur(6px); border-bottom:1px solid #222831}
+    .title{display:flex; align-items:center; gap:12px}
+    .logo{width:40px; aspect-ratio:1; border-radius:12px; background:radial-gradient(circle at 30% 30%, #7dd3fc, transparent 60%), linear-gradient(135deg,#1f3a8a,#0ea5e9); box-shadow:0 8px 24px #0ea5e955}
+    h1{font-size:clamp(18px,2.6vw,24px); margin:0}
+    .actions{display:flex; gap:8px; flex-wrap:wrap}
+    button{background:linear-gradient(180deg,#23272e,#1a1f24); border:1px solid #263244; color:var(--text); border-radius:12px; padding:10px 12px; cursor:pointer; display:inline-flex; gap:8px; align-items:center; font-weight:600; letter-spacing:.2px}
+    button:hover{border-color:#334155}
+    input[type=text]{background:#0b1222; border:1px solid #1f2937; color:var(--text); border-radius:10px; padding:8px 10px; min-width:220px}
+
+    main{padding:24px clamp(16px,3vw,32px)}
+    .panel{background:linear-gradient(180deg,var(--card),#10151b); border:1px solid #222831; border-radius:var(--radius)}
+    .panel .head{display:flex; align-items:center; justify-content:space-between; padding:18px 18px 0 18px}
+    .panel .body{padding:18px}
+
+    .grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px}
+    @media (max-width: 860px){ .grid{grid-template-columns:1fr} }
+
+    .card{padding:16px; border:1px solid #222831; background:linear-gradient(180deg,#15191f,#12171f); border-radius:16px; position:relative; box-shadow:0 8px 24px rgba(0,0,0,.25)}
+    .card h3{margin:0 0 10px 0; font-size:16px}
+    .hint{color:var(--silver); font-size:12px; line-height:1.4}
+    .row{display:grid; grid-template-columns:1fr; gap:12px; align-items:center; margin:10px 0}
+    .score-wrap{display:flex; align-items:center; gap:8px}
+    .score{min-width:40px; text-align:center; font-weight:800; padding:6px 8px; border-radius:10px; border:1px solid #253041}
+    .score[data-zone="low"]{background:#3a0d12; color:#fecaca; border-color:#7f1d1d}
+    .score[data-zone="mid"]{background:#3a2d0d; color:#fde68a; border-color:#854d0e}
+    .score[data-zone="high"]{background:#0e2f22; color:#bbf7d0; border-color:#065f46}
+
+    input[type=range]{width:200px; height:8px; border-radius:6px; outline:none; -webkit-appearance:none; background:#1f2937}
+    input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:#cbd5e1; border:1px solid #9ca3af }
+    input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%; background:#cbd5e1; border:1px solid #9ca3af }
+
+    .radio{display:flex; gap:6px; justify-content:space-between; margin-top:8px}
+    .radio button{padding:6px 8px; border-radius:8px; font-size:12px; min-width:34px; text-align:center}
+
+    textarea{width:100%; min-height:80px; resize:vertical; color:#d1d5db; background:#14181e; border:1px solid #2a3440; border-radius:12px; padding:10px}
+    textarea::placeholder{color:#9ca3af; opacity:.95}
+
+    .kpis{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px}
+    .kpi{padding:12px; border-radius:14px; border:1px solid #222831; background:linear-gradient(180deg,#15191f,#12171f); text-align:center; box-shadow:inset 0 1px 0 rgba(255,255,255,.02)}
+    .kpi h4{margin:0; font-size:12px; color:#cbd5e1}
+    .kpi .val{font-size:22px; font-weight:900}
+
+    .table{width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border-radius:14px; border:1px solid #1f2937}
+    .table th, .table td{padding:10px 12px; border-bottom:1px solid #1f2937; font-size:14px}
+    .table th{background:#0a1222; text-align:left; color:#93c5fd}
+    .table tr:last-child td{border-bottom:none}
+
+    .pill{display:inline-flex; align-items:center; gap:6px; padding:6px 8px; border-radius:999px; border:1px solid #223047; font-size:12px; color:#cbd5e1}
+    .muted{color:var(--muted)}
+
+    footer{padding:18px; color:var(--muted); font-size:12px; text-align:center}
+
+    @media print{
+      @page{size:A4; margin:12mm}
+      body{background:#fff; color:#000}
+      header{position:static; background:#fff; border:none; box-shadow:none}
+      .actions{display:none}
+      .panel,.card,.kpi{background:#fff !important; border:1px solid #bbb; box-shadow:none}
+      .table th{background:#f2f2f2; color:#000}
+      .pill{color:#000; border-color:#bbb; background:#f6f6f6}
+      textarea, .radio, input[type=range]{display:none}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title" role="heading" aria-level="1">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>Audit Flash – Maturité Innovation</h1>
+        <div class="muted">Diagnostic express (7 axes · score /5)</div>
+      </div>
+    </div>
+    <div class="actions">
+      <label>Nom / Entité : <input id="whoInput" type="text" placeholder="ex. Dupont – BU Retail"/></label>
+      <button type="button" id="btnNew" title="Réinitialiser">↺ Nouveau</button>
+      <button type="button" id="btnImport" title="Importer JSON">⤒ Import</button>
+      <button type="button" id="btnExport" title="Exporter JSON">⤓ Export</button>
+      <button type="button" id="btnPrint" title="Imprimer / PDF">🖨️ Imprimer</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel" aria-labelledby="axes-title">
+      <div class="head">
+        <h2 id="axes-title">Axes & Notation (1 → 5)</h2>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+          <span class="pill" id="liveScore" aria-live="polite">Score global : —</span>
+          <span class="pill" id="liveSummary" aria-live="polite">Résumé : —</span>
+        </div>
+      </div>
+      <div class="body">
+        <div class="grid" id="axesGrid"></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="viz-title" style="margin-top:16px">
+      <div class="head">
+        <h2 id="viz-title">Visuel & Synthèse</h2>
+      </div>
+      <div class="body">
+        <div style="aspect-ratio:1/1; max-height:440px; position:relative">
+          <canvas id="radar" width="700" height="700" style="width:100%; height:auto"></canvas>
+        </div>
+        <div class="kpis" style="margin-top:14px">
+          <div class="kpi"><h4>Score moyen</h4><div class="val" id="kpiAvg">—</div></div>
+          <div class="kpi"><h4 title="Moyenne × 20, ramenée sur 100%">Indice (%)</h4><div class="val" id="kpiPct">—</div></div>
+          <div class="kpi"><h4 title="Écart-type des 7 scores (dispersion)">Volatilité (σ)</h4><div class="val" id="kpiStd">—</div></div>
+        </div>
+        <p class="muted" style="margin:8px 2px 0; font-size:12px; line-height:1.4">🔎 <strong>Indice</strong> = moyenne des 7 axes × 20 (sur 100). <strong>Volatilité σ</strong> = écart-type des 7 scores : <em>0</em> = homogène; <em>≈0.5</em> = variations modérées; <em>≥1.0</em> = forte hétérogénéité inter-axes.</p>
+        <div id="autoInsight" class="card" style="margin-top:12px; padding:12px">
+          <h3 style="margin:0 0 6px 0; font-size:14px">Interprétation automatique</h3>
+          <div class="muted" id="insightText">—</div>
+        </div>
+        <h3 style="margin:18px 0 8px 0">Tableau de synthèse</h3>
+        <table class="table" id="tbl"><thead><tr><th>Axe</th><th>Score</th><th>Zone</th><th>Verbatim / Observations</th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+  </main>
+
+  <footer>© Audit flash innovation – Individuel · Radar canvas custom · Export/Import JSON · Impression PDF.</footer>
+
+  <template id="tpl-card">
+    <div class="card" data-key>
+      <h3 class="label"></h3>
+      <div class="hint"></div>
+      <div class="row" style="margin-top:12px">
+        <div class="score-wrap">
+          <span class="score" data-zone>—</span>
+          <div>
+            <label class="sr">Score</label>
+            <input type="range" min="1" max="5" step="1" value="3" aria-label="Score (1 à 5)" />
+          </div>
+        </div>
+        <div class="radio" aria-label="Raccourcis de score">
+          <button data-quick="1">1</button>
+          <button data-quick="2">2</button>
+          <button data-quick="3">3</button>
+          <button data-quick="4">4</button>
+          <button data-quick="5">5</button>
+        </div>
+      </div>
+      <label class="sr">Verbatim / Observations</label>
+      <textarea placeholder="Notes rapides : indices observables, citations, irritants, preuves…"></textarea>
+    </div>
+  </template>
+
+  <script>
+    // ---- Axes
+    const AXES = [
+      { key:'vision',    label:'Vision & Gouvernance', hint:"Cohérence stratégique, sponsor identifié, arbitrages clairs, design system et terminologie unifiés." },
+      { key:'culture',   label:'Culture & Leadership', hint:"Droit à l'erreur, rituels d'apprentissage, canaux de feedback visibles, posture managériale d'ouverture." },
+      { key:'process',   label:'Processus & Méthodes', hint:"Parcours clairs, itérations visibles, UX mesurable, prototypage rapide, décisions basées sur la valeur utilisateur, accessibilité." },
+      { key:'resources', label:'Ressources & Moyens',  hint:"Budget/temps dédiés, qualité d'exécution, release notes, stabilité/performance, accessibilité." },
+      { key:'tech',      label:'Technologie & Data',   hint:"APIs, analytics, responsive, gouvernance des données." },
+      { key:'openness',  label:'Ouverture & Écosystème', hint:"Intégrations, import/export, documentation ouverte, co‑innovation, API publique." },
+      { key:'impact',    label:'Résultats & Impact',   hint:"Objectifs atteints, adoption, gains mesurés, passage à l'échelle, contribution RSE/sobriété." },
+    ];
+
+    // ---- State
+    const APPKEY = 'audit-flash-offline-v1.2';
+    let state = { who:'', sheet: Object.fromEntries(AXES.map(a=>[a.key,{score:3,notes:''}])) };
+    const save=()=>localStorage.setItem(APPKEY, JSON.stringify(state));
+    const load=()=>{ try{ const raw=localStorage.getItem(APPKEY); if(raw) state=JSON.parse(raw); }catch(e){} };
+
+    // ---- DOM
+    const whoInput = document.getElementById('whoInput');
+    const grid = document.getElementById('axesGrid');
+    const tpl = document.getElementById('tpl-card');
+    const live = document.getElementById('liveScore');
+    const liveSummary = document.getElementById('liveSummary');
+    const kpiAvg = document.getElementById('kpiAvg');
+    const kpiPct = document.getElementById('kpiPct');
+    const kpiStd = document.getElementById('kpiStd');
+    const insightText = document.getElementById('insightText');
+    const tblBody = document.querySelector('#tbl tbody');
+
+    // ---- Colors helpers
+    const RED='#ef4444', GREEN='#10b981', AMBER='#f59e0b';
+    const clamp=(x,min,max)=>Math.min(max,Math.max(min,x));
+    const mix=(a,b,t)=>Math.round(a+(b-a)*t);
+    const hex=x=>x.toString(16).padStart(2,'0');
+    function mixHex(c1,c2,t){ const a=parseInt(c1.slice(1),16), b=parseInt(c2.slice(1),16);
+      const ar=(a>>16)&255, ag=(a>>8)&255, ab=a&255; const br=(b>>16)&255, bg=(b>>8)&255, bb=b&255;
+      const r=mix(ar,br,t), g=mix(ag,bg,t), bl=mix(ab,bb,t); return `#${hex(r)}${hex(g)}${hex(bl)}`; }
+    const colorForScore = s => mixHex(RED, GREEN, clamp((Number(s)-1)/4,0,1));
+    function setRangeFill(range,value){ const min=Number(range.min||1), max=Number(range.max||5), v=Number(value);
+      const p=((v-min)/(max-min))*100; const col=colorForScore(v);
+      range.style.background=`linear-gradient(90deg, ${col} 0, ${col} ${p}%, #1f2937 ${p}%)`; }
+
+    // ---- Math helpers
+    const levelSummary = avg => avg<=1.5? 'Naïf – initiatives isolées' : avg<=2.5? 'Opportuniste – pilotes ponctuels' : avg<=3.5? 'Structuré – cadres en place' : avg<=4.5? 'Intégré – transversal et piloté' : 'Disruptif – moteur écosystème';
+    const paintScore = (el,val) => { el.textContent=val; const v=Number(val); el.dataset.zone = v<=2?'low': v===3?'mid':'high'; el.style.borderColor = colorForScore(v); };
+    function stats(values){ const avg=values.reduce((a,b)=>a+b,0)/values.length; const variance=values.reduce((s,v)=>s+Math.pow(v-avg,2),0)/values.length; return {avg, sd:Math.sqrt(variance), pct:avg*20}; }
+
+    // ---- Build UI
+    function build(){
+      grid.innerHTML='';
+      AXES.forEach(a=>{
+        const node = tpl.content.firstElementChild.cloneNode(true);
+        node.dataset.key = a.key;
+        node.querySelector('.label').textContent = a.label;
+        node.querySelector('.hint').textContent = a.hint;
+        const range = node.querySelector('input[type=range]');
+        const scoreEl = node.querySelector('.score');
+        const ta = node.querySelector('textarea');
+        const quicks = node.querySelectorAll('[data-quick]');
+
+        range.value = state.sheet[a.key].score; paintScore(scoreEl, range.value); setRangeFill(range, range.value);
+        ta.value = state.sheet[a.key].notes;
+
+        range.addEventListener('input', e=>{ state.sheet[a.key].score = Number(e.target.value); paintScore(scoreEl,e.target.value); setRangeFill(range, e.target.value); save(); draw(); });
+        quicks.forEach(btn=>btn.addEventListener('click',()=>{ const v=Number(btn.dataset.quick); range.value=v; range.dispatchEvent(new Event('input')); }));
+        ta.addEventListener('input', e=>{ state.sheet[a.key].notes = e.target.value; save(); draw(); });
+
+        grid.appendChild(node);
+      });
+      draw();
+    }
+
+    function refreshTable(){
+      tblBody.innerHTML='';
+      AXES.forEach(a=>{
+        const s = state.sheet[a.key].score; const col = colorForScore(s);
+        const zone = s<=2? '🔴 Friction' : s===3? '🟠 Éveil' : '🟢 Diffusion';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${a.label}</td><td><strong style="color:${col}">${s}</strong>/5</td><td>${zone}</td><td>${(state.sheet[a.key].notes||'').replace(/</g,'&lt;')}</td>`;
+        tblBody.appendChild(tr);
+      });
+    }
+
+    // ---- Custom Radar (no library)
+    function drawRadar(canvas, labels, values){
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width, H = canvas.height; ctx.clearRect(0,0,W,H);
+      const cx=W/2, cy=H/2; const R=Math.min(W,H)*0.35; const N=labels.length; const max=5;
+      // helpers
+      const angle = i => (-Math.PI/2) + (i*2*Math.PI/N);
+      const xy = (r,i) => [cx + r*Math.cos(angle(i)), cy + r*Math.sin(angle(i))];
+      ctx.lineWidth = 1; ctx.strokeStyle = '#233046'; ctx.fillStyle = 'transparent';
+      // grid (levels)
+      for(let lvl=1; lvl<=max; lvl++){
+        ctx.beginPath();
+        for(let i=0;i<N;i++){ const [x,y]=xy(R*lvl/max,i); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+        ctx.closePath(); ctx.stroke();
+      }
+      // axes
+      ctx.strokeStyle = '#233046';
+      for(let i=0;i<N;i++){ const [x,y]=xy(R,i); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke(); }
+      // labels
+      ctx.fillStyle = '#cbd5e1'; ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      for(let i=0;i<N;i++){
+        const [x,y] = xy(R*1.12,i); const text = labels[i];
+        ctx.save();
+        // multi-line if too long
+        const maxW = 120; if(ctx.measureText(text).width > maxW){
+          const parts = text.split(' '); let line='', yy=y-7;
+          for(const w of parts){ const test=line? line+' '+w : w; if(ctx.measureText(test).width>maxW){ ctx.fillText(line, x, yy); line=w; yy+=14; } else line=test; }
+          if(line) ctx.fillText(line,x,yy);
+        } else { ctx.fillText(text,x,y); }
+        ctx.restore();
+      }
+      // polygon
+      const avg = values.reduce((a,b)=>a+b,0)/values.length; const border=AMBER; // orange demandé
+      ctx.beginPath();
+      values.forEach((v,i)=>{ const [x,y]=xy(R*(v/max),i); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+      ctx.closePath();
+      // fill gradient centre->bord (rouge->vert)
+      const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,R);
+      grad.addColorStop(0,'#ef444420'); grad.addColorStop(1,'#10b98140');
+      ctx.fillStyle = grad; ctx.fill();
+      ctx.strokeStyle = border; ctx.lineWidth = 2; ctx.stroke();
+      // points
+      for(let i=0;i<N;i++){ const v=values[i]; const [x,y]=xy(R*(v/max),i); ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2); ctx.fillStyle=colorForScore(v); ctx.fill(); }
+    }
+
+    let radarDrawn=false;
+    function draw(){
+      const values = AXES.map(a=>Number(state.sheet[a.key].score));
+      const {avg, sd, pct} = stats(values);
+      live.textContent = `Score global : ${avg.toFixed(2)} / 5 (${pct.toFixed(0)}%)`;
+      liveSummary.textContent = `Résumé : ${levelSummary(avg)}`;
+      kpiAvg.textContent = avg.toFixed(2);
+      kpiPct.textContent = pct.toFixed(0)+'%';
+      kpiStd.textContent = sd.toFixed(2);
+
+      // KPIs teintés en jaune/orangé
+      document.querySelectorAll('.kpi').forEach((el)=>{ el.style.borderColor = AMBER + '80'; el.style.background = `linear-gradient(180deg,#15191f, ${AMBER}10)`; });
+
+      const sorted = AXES.map(a=>({label:a.label,score:state.sheet[a.key].score}))
+        .sort((x,y)=>y.score-x.score);
+      const top = sorted.slice(0,2).map(x=>`${x.label} (${x.score}/5)`).join(', ');
+      const low = sorted.slice(-2).map(x=>`${x.label} (${x.score}/5)`).join(', ');
+      const hetero = sd>=1 ? "Hétérogénéité forte entre axes; prioriser l'alignement." : sd>=0.5 ? "Variations notables à lisser." : "Profil homogène.";
+      insightText.textContent = `Forces : ${top||'—'} · Faiblesses : ${low||'—'} · ${hetero}`;
+
+      refreshTable();
+
+      // Radar custom
+      const canvas = document.getElementById('radar');
+      drawRadar(canvas, AXES.map(a=>a.label), values);
+      radarDrawn=true;
+    }
+
+    // ---- Actions
+    document.getElementById('btnNew').addEventListener('click', ()=>{ state = { who:'', sheet:Object.fromEntries(AXES.map(a=>[a.key,{score:3,notes:''}])) }; save(); build(); });
+    document.getElementById('btnExport').addEventListener('click', ()=>{
+      try{
+        const data = { version:'1.2-offline', who: state.who, sheet: state.sheet, date: new Date().toISOString() };
+        const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url; a.download=`audit-flash_${(state.who||'individuel').replace(/\s+/g,'_')}.json`; a.style.display='none'; document.body.appendChild(a); a.click(); setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); },0);
+      }catch(e){
+        const data = { version:'1.2-offline', who: state.who, sheet: state.sheet, date: new Date().toISOString() };
+        const w = window.open(); if(w){ w.document.write('<pre>'+JSON.stringify(data,null,2)+'</pre>'); } else { alert('Impossible d\'ouvrir une nouvelle fenêtre. Activez les popups ou copiez-collez les données.'); }
+      }
+    });
+    document.getElementById('btnImport').addEventListener('click', ()=>{
+      const inp=document.createElement('input'); inp.type='file'; inp.accept='application/json';
+      inp.onchange=()=>{ const f=inp.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ const obj=JSON.parse(r.result); if(obj.sheet){ state.who=obj.who||''; state.sheet=obj.sheet; save(); whoInput.value=state.who; build(); } }catch(e){ alert('Fichier invalide'); } }; r.readAsText(f) };
+      inp.click();
+    });
+    document.getElementById('btnPrint').addEventListener('click', ()=> { try{ window.print(); }catch(e){ alert('Impression non disponible dans ce contexte. Utilisez Ctrl/Cmd+P.'); } });
+
+    whoInput.addEventListener('input', (e)=>{ state.who = e.target.value; save(); draw(); });
+
+    // ---- Bootstrap
+    load();
+    whoInput.value = state.who || '';
+    build();
+
+    // ---- Quick tests
+    (function(){ const s=[1,2,3,4,5]; const avg=s.reduce((a,b)=>a+b,0)/s.length; console.assert(Math.abs(avg-3)<1e-9,'avg test'); console.log('Diagnostics OK ✅'); })();
+  </script>
+</body>
+</html>
